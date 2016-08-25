@@ -1,0 +1,83 @@
+---
+title: "Exploration of Central Limit Theorem using Exponential Distribution"
+author: "Bradley JK Smith"
+date: "25 August 2016"
+output: html_document
+---
+## Summary
+Going to investigate Central Limit Theorem using repeated draws from exponential distribution.  
+
+The CLT states that the distribution of averages of iid variables becomes that of a standard normal as the sample size increases. Alternatively, X_n ~ N(mu, sigma^2/n) (ref - B Caffo, Little Inference Book, p. 57)
+
+## Set up
+Load required libraries  
+Set seed so code is reproducible  
+Define lambda, number of draws and number of simulations  
+```{r setup}
+suppressPackageStartupMessages({
+  require(ggplot2)
+  })
+set.seed(839297)
+lambda <- 0.2
+n_draws <- 40
+n_simulations <- 1000
+```
+## Background
+
+Exponential distribution:
+* PDF(x, lambda) = lambda * exp( -lambda * x) (where x >= 0)
+* Mean = 1/lambda
+* SD = 1/lambda
+
+For a lambda of 0.2, the probability density for the Exponential distribution is shown below. In this case, the mean is 5 and the standard deviation is 5.
+
+```{r}
+x <- seq(0, 20, by=0.1)
+y <- dexp(x, lambda)
+qplot(x,
+      y,
+      main = 'Probability Density for Exponential Distribution (lambda = 0.2)',
+      ylab = 'Probability',
+      ylim = c(0,0.2),
+      geom = c('line')
+     )
+```
+
+
+## Simulation
+
+Take 1000 averages of 40 exponentials.
+
+```{r}
+y <- NULL
+for( i in 1 : n_simulations ) y <- c(y, mean(rexp(n_draws,lambda)))
+dat <- as.data.frame(y)
+colnames(dat) <- 'value'
+```
+
+## Comparison
+Expect that the sampled distribution should be ~ N(mu, sigma^2/n)  
+In this case:  
+* mu = 1/lambda = 5
+* sigma = 1/lambda = 5
+* sigma^2/n = 25/40
+
+Wald confidence intervals
+
+```{r}
+mu_hat <- mean(dat$value)
+sigma_hat <- sd(dat$value)
+mu <- 1/lambda
+sigma <- 1/lambda/sqrt(n_draws)
+ll <- mu - qnorm(0.975) * sigma
+ul <- mu + qnorm(0.975) * sigma
+
+ggplot(data = dat, aes(x=value)) +
+  geom_histogram(bins = 30, colour = 'lightblue', fill = 'lightblue', aes(y = ..density..)) + 
+  geom_vline(xintercept = mu, size = 0.5, colour = 'blue', linetype = 'dashed') +
+  geom_vline(xintercept = mu_hat, size = 1) +
+  geom_vline(xintercept = ul, size = 0.5, colour = 'blue', linetype = 'dashed') +
+  geom_vline(xintercept = ll, size = 0.5, colour = 'blue', linetype = 'dashed') +
+  ggtitle('Comparison of Sample Distribution with theoretical values') +
+  stat_function(fun = dnorm, args = list(mean = mu, sd = sigma), size = 0.5)
+```
