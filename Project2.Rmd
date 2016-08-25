@@ -1,0 +1,87 @@
+---
+title: "Exploration of Tooth Decay Data"
+author: "Bradley JK Smith"
+date: "25 August 2016"
+output: html_document
+---
+## Summary
+Basic exploratory data analysis of ToothGrowth dataset was performed.  
+The null hypothesis that OJ supplement has no effect on tooth growth was rejected at the 95% confidence level.  
+The null hypothesis that VC supplement has no effect on tooth growth was rejected at the 95% confidence level.
+
+Under the assumption that supplement dosages are comparable, the null hypothesis that the OJ and VC supplements has similar effect on tooth growth was not rejected at the 95% confidence level.
+
+## Set up
+Load required libraries and data  
+```{r setup}
+suppressPackageStartupMessages({
+  require(ggplot2)
+  })
+data('ToothGrowth')
+```
+
+## Background
+The ToothGrowth data set has 3 levels of doses (0.5, 1.0 and 2.0) and 2 levels of supplements (OJ and VC) (I assume these are Orange Juice and Vitamin C, but can't label these on the graphs as I don't know).  
+
+```{r}
+table(ToothGrowth$dose, ToothGrowth$supp)
+```
+
+The graph of dosage versus length for each supplement is show below.
+
+```{r}
+qplot(x = dose, y = len, data = ToothGrowth, facets = . ~ supp)
+```
+
+## Hypothesis Testing
+
+A general assumption is that the data is un-paired (which seems sensible as there is no 'patient' index in the data)
+
+### Dosage
+
+The null hypothesis is that the tooth growth (specified as 'len') is not affected by the dosage for each supplement. This is tested by taking pair-wise combinations of the dosage sets and performing an ungrouped two-sided t test. The p-value is adjusted by controlling the false discovery rate.
+
+### Supplements
+
+The null hypothesis is that the tooth growth is not affected by the supplement used when the dosage is controlled. This is tested by taking pair-wise combinations of the supplements at the same dosage and performing an ungrouped two-sided t test. In addition, an adjusted p-value is calculated by controlling the false discovery rate. 
+
+The assumption here is that the dosage values are comparable. That is, a 0.5 dose of the OJ supplement can reasonably be compared to a 0.5 dose of the VC supplement.
+
+```{r}
+res <- as.data.frame(matrix(NA,ncol=6, nrow=9))
+res[,1] <- c(rep('OJ',3), rep('VC',3), rep('OJ',3))
+res[,2] <- c(rep(c(0.5, 0.5, 1.0),2), c(0.5, 1.0, 2.0))
+res[,3] <- c(rep('OJ',3), rep('VC',3), rep('VC',3))
+res[,4] <- c(rep(c(1.0, 2.0, 2.0),2), c(0.5, 1.0, 2.0))
+colnames(res) <- c('supp_A', 'dose_A', 'supp_B', 'dose_B', 'p-value', 'p-adjust')
+
+for( i in 1:nrow(res) ) {
+  idx1 <- ToothGrowth[,'supp'] == res[i,1]
+  idx2 <- ToothGrowth[,'dose'] == res[i,2]
+  idx3 <- ToothGrowth[,'supp'] == res[i,3]
+  idx4 <- ToothGrowth[,'dose'] == res[i,4]
+  res[i,5] <- t.test(ToothGrowth[idx1&idx2,'len'], ToothGrowth[idx3&idx4,'len'], alternative = 'two.sided')$p.value
+  if( i %% 3 == 0) {
+    res[(i-2):i,'p-adjust'] <- p.adjust(res[(i-2):i,'p-value'], method = 'BH')
+  }
+}
+res[,5:6] <- round(res[,5:6],5)
+
+print(res, row.names=FALSE)
+```
+
+
+## So what does this mean?
+
+1. Reject the null hypothesis that the OJ supplement has no impact on tooth growth at the 95% confidence level  
+  + The adjusted p-values for rows 1 to 3 are all < 0.05. This is in line with the graph.
+
+2. Reject the null hypothesis that the VC supplement has no impact on tooth growth at the 0.05 confidence level
+
+  + The adjusted p-values for rows 4 to 6 are all < 0.05 (much less in this case). This is also in line with the graph where there is almost no overlap between the dose distributions.
+
+3. Fail to reject the null hypothesis that one supplement is better than the other for all dosage levels.
+
+  + The adjusted p-values for rows 7 to 9 are not all < 0.05. You can't say that OJ always beats VC no matter the dose.
+
+  + Taking the dosage levels separately, you can make the case (at the 95% confidence level) that OJ is better for tooth growth at lower dosage levels - but this is very dependent on the assumption that dosage levels can be compared.
